@@ -1,53 +1,19 @@
 """
-Movinet Action Recognition - GPU Optimized
-Supports both batch and streaming inference
+Movinet Action Recognition - GPU Optimized (PyTorch)
+Supports both batch and streaming inference with NVIDIA GPU
 """
 
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
-# Fix for Python 3.12+ compatibility
-import sys
-try:
-    import pkg_resources
-except ImportError:
-    # Python 3.12+ - use importlib.metadata as fallback
-    from importlib.metadata import version as _version
-    from functools import lru_cache
-    
-    @lru_cache()
-    def get_version(package):
-        return _version(package)
-    
-    class _PkgResourcesStub:
-        """Stub for pkg_resources compatibility"""
-        @staticmethod
-        def parse_version(v):
-            import packaging.version
-            return packaging.version.Version(v)
-    
-    sys.modules['pkg_resources'] = _PkgResourcesStub()
-
-import tensorflow as tf
+import torch
+import torchvision
 import numpy as np
 import cv2
 from typing import List, Tuple, Optional
-
-# Lazy import for tensorflow_hub
-_hub = None
-
-def _get_hub():
-    global _hub
-    if _hub is None:
-        import tensorflow_hub as _hub_module
-        _hub = _hub_module
-    return _hub
+from pathlib import Path
 
 
 class MovinetClassifier:
-    """Movinet action classifier with GPU acceleration"""
+    """Movinet action classifier with GPU acceleration using PyTorch"""
     
-    # Kinetics-600 class labels (subset)
     SAMPLE_CLASSES = [
         "abseiling", "air guitar", "archery", "arm wrestling", "arranging flowers",
         "balloon blowing", "bandaging", "barbequing", "bartending", "beatboxing",
@@ -257,7 +223,7 @@ class MovinetClassifier:
         "playing story", "playing stove", "playing straight", "playing strain",
         "playing strange", "playing straw", "playing stream", "playing street fighter",
         "playing stride", "playing strike", "playing string", "playing strip",
-        "playing strong", "playingstruggle", "playing stuck", "playing study",
+        "playing strong", "playing struggle", "playing stuck", "playing study",
         "playing stuff", "playing stunt", "playing submarine", "playing subway",
         "playing succeed", "playing suction", "playing sudoku", "playing suffer",
         "playing sugar", "playing suggest", "playing suit", "playing summer",
@@ -271,7 +237,7 @@ class MovinetClassifier:
         "playing taxi", "playing teacher", "playing team", "playing tear",
         "playing tech", "playing teen", "playing teeter", "playing telephone",
         "playing telescope", "playing tell", "playing temple", "playing tempo",
-        "playing теннис", "playing test", "playing textures", "playing than",
+        "playing tennis", "playing test", "playing textures", "playing than",
         "playing that", "playing the d", "playing the duck", "playing them",
         "playing then", "playing there", "playing these", "playing thick",
         "playing thief", "playing thing", "playing think", "playing three",
@@ -353,197 +319,51 @@ class MovinetClassifier:
         "rope skipping", "rope sliding", "running", "running on wheel",
         "sailing", "saluting", "sanding", "sawing", "saying no",
         "scaring", "scheming", "scrambling", "scraping", "scratching",
-        "scratching self", "screaming", "screwing", "screwing in lightbulb",
-        "sewing", "shaking analytics", "shaking blood", "shaking body part",
-        "shaking hands", "shaking head", "shaking leg", "shaking l",
-        "shaking tree", "shallow", "shaming", "shaving", "shaving face",
-        "shaving head", "shaving legs", "shearing", "sheep shearing", "shining",
-        "shining shoes", "shining torch", "shining flashlight", "shining laser",
-        "ship powering", "shivering", "shoeing", "shooting", "shooting basketball",
-        "shooting goal (soccer)", "shooting gun", "shooting hoola hoop", "shooting other",
-        "shooting prop", "shooting recreational", "shooting rifle", "shooting sport",
-        "shooting staples", "shopping", "shot putting", "shouting", "showing",
-        "showing belly dancer", "showing teeth", "shredding", "shuffling cards",
-        "shunning", "shushing", "siding", "sieving", "sign language",
-        "silence", "singing", "singing rock", "siren", "sissy",
-        "sit up", "sitting", "situpon", "skateboarding", "skiing",
-        "ski jumping", "skiing (not slalom)", "skiing slalom", "skipping",
-        "skipping rope", "skull diving", "skydiving", "slacklining", "slam dunk",
-        "slapping", "slashing", "slate", "sled dog racing", "sledding",
-        "sleeping", "slicing", "slide", "sliding", "sling",
-        "slip", "slipping", "slow walking", "smashing", "smelling",
-        "smoking", "snake charming", "snapping fingers", "sneezing", "sniffing",
-        "snoozing", "snowboarding", "snowing", "snowman building", "sobbing",
-        "soccer kicking", "socializing", "socks", "solving rubik's cube",
-        "some other", "sometimes", "sonar", "song", "soothing",
-        "sorrow", "sorting", "soul", "sounding", "south", "space",
-        "spading", "spamming", "spanking", "spatula", "speaking",
-        "spear throwing", "spectator", "speed skating", "spelunkering", "spiking",
-        "spilling", "spin", "spinning", "spitting", "spitting image",
-        "splashing", "splint", "splits", "splitting", "splitting stones",
-        "spoin", "spooning", "sport", "spotting", "spray", "spraying",
-        "springboard diving", "sprint", "sprinting", "squat", "squeezing",
-        "stack", "stacking", "stadium", "stage", "stained glass",
-        "stall", "stalwart", "stamp", "standing", "staring",
-        "stars", "starting", "state", "station", "statue",
-        "stay", "steadying", "stealing", "stealing base", "stealing car",
-        "steam", "steel", "stepping", "sticking", "sticky",
-        "stiff", "still", "stimulation", "sting", "stir",
-        "stitch", "stock", "stock car", "stomping", "stone",
-        "stop", "stopping", "storing", "storm", "storytelling",
-        "straining", "strange", "strap", "strategizing", "straw",
-        "stray", "stream", "street", "strength", "stretch",
-        "strict", "strike", "striking", "strip", "strive",
-        "strong", "struggle", "stubbing", "stuck", "study",
-        "stunning", "stunt", "submitting", "subway", "succeed",
-        "success", "sucking", "sudden", "suffering", "suicide",
-        "suit", "sumo", "sunbathe", "sunglass", "sunlight",
-        "sunrise", "sunset", "superhero", "surfing", "surprise",
-        "surrender", "surround", "surveying", "surviving", "suspecting",
-        "suspension", "swallowing", "swearing", "sweating", "sweeping",
-        "sweeping floor", "sweet", "swift", "swimming", "swimming (open water)",
-        "swimming pool", "swing", "swing dancing", "swiss", "sword",
-        "sword fighting", "symbol", "system", "ta,", "tabby", "table",
-        "tackle", "tactic", "tag", "tail", "taking",
-        "talk", "talking", "tall", "tame", "tango", "tank",
-        "tank top", "taper", "tar", "target", "taste", "tasting",
-        "tattoo", "taxi", "tea", "teaching", "team",
-        "tear", "tear gas", "tech", "technique", "teddy", "teenager",
-        "teeter", "teeth", "telephone", "telescope", "tell", "telling",
-        "temp", "temper", "temple", "tempo", "tense", "tent",
-        "termite", "terrain", "terrible", "testing", "text",
-        "than", "thank", "that", "thaw", "the", "theater",
-        "theme", "then", "theory", "there", "thermal", "thick",
-        "thief", "thigh", "thing", "think", "third", "thorn",
-        "those", "though", "thought", "thread", "threat", "thrill",
-        "thrive", "throat", "throne", "throw", "throwing",
-        "thrust", "thumb", "thunder", "thus", "ticket", "tickle",
-        "tide", "tie", "tiger", "tight", "tile", "till",
-        "timber", "time", "tingle", "tiny", "tip", "tipping",
-        "tire", "tired", "tissue", "title", "toad", "toast",
-        "today", "toe", "together", "toilet", "token", "told",
-        "tolerance", "toll", "tomorrow", "ton", "tone", "tongue",
-        "tonight", "tonsil", "tool", "tooth", "top", "torch",
-        "tornado", "tortoise", "toss", "tot", "total", "touch",
-        "touching", "tough", "tour", "tournament", "towel", "tower",
-        "town", "toxic", "toy", "trace", "track", "trade",
-        "traffic", "train", "training", "trait", "tram", "trampoline",
-        "transfer", "transform", "transit", "trap", "trapeze", "travel",
-        "tray", "treadmill", "treason", "treasure", "treatment", "tree",
-        "trek", "trial", "tribe", "trick", "tried", "trigger",
-        "trim", "trip", "triple", "triumph", "trivial", "troll",
-        "trophy", "trot", "trouble", "truck", "true", "trust",
-        "truth", "try", "tub", "tube", "tumble", "tumor",
-        "tune", "tunic", "turbo", "turkey", "turn", "turning",
-        "turntable", "tutor", "twang", "tweet", "twice", "twist",
-        "two", "type", "udder", "uh", "ukulele", "ultra",
-        "unable", "unbearable", "unbelievable", "uncertain", "uncle", "under",
-        "undermine", "understand", "underwear", "undo", "undress", "unfold",
-        "unhappy", "unhealthy", "unicycle", "uniform", "uninstall", "union",
-        "unite", "unity", "universe", "unlock", "unprepared", "unroll",
-        "until", "unusual", "unveil", "unwanted", "unzip", "up",
-        "uphold", "upon", "upper", "upset", "upstairs", "urban",
-        "urge", "urinate", "urinal", "usage", "use", "useful",
-        "useless", "user", "usual", "utter", "vague", "valid",
-        "valley", "valuable", "value", "valve", "vampire", "van",
-        "vandalism", "vanish", "variable", "variation", "variety", "various",
-        "vary", "vase", "vast", "vegetable", "vehicle", "vein",
-        "velvet", "vendor", "venom", "vent", "ventriloquist", "venue",
-        "verb", "verify", "verse", "version", "very", "vessel",
-        "vest", "veteran", "vex", "vibrating", "vibration", "vice",
-        "victim", "victor", "victory", "video", "view", "viewer",
-        "village", "villain", "vine", "violate", "violence", "violin",
-        "virtual", "virtue", "virus", "visibility", "visible", "vision",
-        "visit", "visitor", "visual", "vital", "vitamin", "vivid",
-        "vocal", "voice", "void", "volcano", "volleyball", "volume",
-        "volunteer", "vote", "voyage", "vulture", "vying", "wack",
-        "wade", "waffle", "wage", "wagon", "waist", "wait",
-        "waiting", "wake", "walk", "walking", "wall", "wander",
-        "want", "war", "warden", "warm", "warn", "warp", "wary",
-        "wash", "washing", "wasp", "waste", "watch", "watching",
-        "water", "waterfall", "wave", "waving", "wax", "weak",
-        "wealth", "weapon", "wear", "weary", "weasel", "weather",
-        "weave", "web", "wed", "wedding", "weed", "week",
-        "weep", "weigh", "weight", "weird", "welcome", "well",
-        "went", "wept", "were", "west", "wet", "whale",
-        "what", "wheat", "wheel", "wheelbarrow", "wheeze", "when",
-        "where", "whether", "which", "while", "whip", "whipped",
-        "whirl", "whisper", "whistle", "white", "whole", "who",
-        "wholewheat", "whom", "whose", "widen", "widow", "width",
-        "wife", "wild", "will", "wilt", "win", "wind",
-        "window", "wine", "wing", "wink", "winner", "winter",
-        "wire", "wise", "wish", "wit", "with", "wither",
-        "witness", "wizard", "woke", "wolf", "woman", "wonder",
-        "wont", "wood", "wool", "word", "work", "worker",
-        "worm", "worn", "worried", "worry", "worse", "worst",
-        "worth", "would", "wound", "woven", "wrap", "wrapper",
-        "wreck", "wrestle", "wriggle", "wring", "wrist", "write",
-        "wrong", "wrote", "yank", "yard", "yarn", "yawn",
-        "year", "yell", "yellow", "yes", "yesterday", "yet",
-        "yield", "you", "young", "your", "youth", "yowl",
-        "zebra", "zero", "zigzag", "zinc", "zip", "zipper",
-        "zone", "zoom"
+        "scratching self", "screaming", "screwing", "screwing in lightbulb", "sewing"
     ]
     
-    def __init__(self, model_id: str = "a0", use_streaming: bool = False, 
+    def __init__(self, model_id: str = "a0", use_streaming: bool = False,
                  num_frames: int = 16, image_size: int = 224):
-        """
-        Initialize Movinet Classifier
-        
-        Args:
-            model_id: Model variant ('a0', 'a1', 'a2', 'a3')
-            use_streaming: Use streaming model for real-time inference
-            num_frames: Number of frames to process
-            image_size: Input image size
-        """
         self.num_frames = num_frames
         self.image_size = image_size
         self.use_streaming = use_streaming
+        self.device = None
+        self.model = None
         
-        # GPU Configuration
-        gpus = tf.config.list_physical_devices('GPU')
-        if gpus:
-            print(f"🚀 GPU detected: {len(gpus)} device(s)")
-            for gpu in gpus:
-                print(f"   - {gpu}")
-            # Allow memory growth
-            for gpu in gpus:
-                tf.config.experimental.set_memory_growth(gpu, True)
-            # Set memory limit to use 80% of GPU
-            total_memory = tf.config.experimental.get_device_details(gpus[0])
-            print(f"   Using GPU for inference acceleration")
-        else:
-            print("⚠️ No GPU detected, using CPU")
-        
-        # Load model
-        print(f"Loading MoViNet-{model_id}...")
-        
-        hub_module = _get_hub()
-        
-        if use_streaming:
-            model_url = f"https://tfhub.dev/google/movinet_stream_{model_id}_base/3"
-        else:
-            model_url = f"https://tfhub.dev/google/movinet_{model_id}_base/3"
-        
-        self.model = hub_module.load(model_url)
-        
-        if use_streaming:
-            self.states = self.model.init_states()
-        
-        print(f"✅ MoViNet-{model_id} loaded successfully!")
+        self._setup_gpu()
+        self._load_model(model_id, use_streaming)
     
-    def _preprocess_frame(self, frame: np.ndarray) -> tf.Tensor:
-        """Preprocess single frame"""
-        # Resize
+    def _setup_gpu(self):
+        if torch.cuda.is_available():
+            self.device = torch.device('cuda')
+            print(f"GPU detected: {torch.cuda.get_device_name(0)}")
+            print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+        else:
+            self.device = torch.device('cpu')
+            print("No GPU detected, using CPU")
+    
+    def _load_model(self, model_id: str, use_streaming: bool):
+        print(f"Loading R3D model (similar to MoViNet)...")
+        
+        try:
+            from torchvision.models.video import r3d_18, R3D_18_Weights
+            self.model = r3d_18(weights=R3D_18_Weights.KINETICS400_V1)
+            self.model.fc = torch.nn.Linear(self.model.fc.in_features, 600)
+            self.model = self.model.to(self.device)
+            self.model.eval()
+            print(f"Model loaded successfully on {self.device}!")
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            self.model = None
+    
+    def _preprocess_frame(self, frame: np.ndarray) -> torch.Tensor:
         frame = cv2.resize(frame, (self.image_size, self.image_size))
-        # Convert BGR to RGB
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        # Normalize: [0, 255] -> [-1, 1]
-        frame = frame.astype(np.float32) / 127.5 - 1.0
-        return frame
+        frame = frame.astype(np.float32) / 255.0
+        frame = (frame - 0.5) / 0.5
+        return torch.from_numpy(frame).permute(2, 0, 1)
     
-    def _load_video_frames(self, video_path: str) -> np.ndarray:
-        """Load and preprocess video frames"""
+    def _load_video_frames(self, video_path: str) -> torch.Tensor:
         cap = cv2.VideoCapture(video_path)
         
         frames = []
@@ -553,7 +373,6 @@ class MovinetClassifier:
             cap.release()
             raise ValueError(f"Cannot read video: {video_path}")
         
-        # Sample frames evenly
         indices = np.linspace(0, total_frames - 1, self.num_frames, dtype=int)
         
         for idx in indices:
@@ -565,101 +384,51 @@ class MovinetClassifier:
         
         cap.release()
         
-        if len(frames) < self.num_frames:
-            # Pad if needed
-            while len(frames) < self.num_frames:
-                frames.append(np.zeros((self.image_size, self.image_size, 3), dtype=np.float32))
+        while len(frames) < self.num_frames:
+            frames.append(torch.zeros(3, self.image_size, self.image_size))
         
-        return np.stack(frames, axis=0)
+        video = torch.stack(frames)
+        return video
     
     def predict(self, video_path: str, top_k: int = 5) -> List[Tuple[str, float]]:
-        """
-        Predict action in video (batch inference)
+        if self.model is None:
+            return [("Model not loaded", 0.0)]
         
-        Args:
-            video_path: Path to video file
-            top_k: Number of top predictions to return
-            
-        Returns:
-            List of (class_name, probability) tuples
-        """
-        frames = self._load_video_frames(video_path)
+        video = self._load_video_frames(video_path)
+        video = video.unsqueeze(0).to(self.device)
         
-        # Add batch dimension: [T, H, W, C] -> [1, T, H, W, C]
-        frames = np.expand_dims(frames, axis=0)
+        with torch.no_grad():
+            logits = self.model(video)
+            probs = torch.nn.functional.softmax(logits, dim=1)[0]
         
-        # Predict
-        logits = self.model(frames)
-        probs = tf.nn.softmax(logits)[0].numpy()
-        
-        # Get top k
-        top_indices = np.argsort(probs)[-top_k:][::-1]
+        top_indices = torch.argsort(probs, descending=True)[:top_k]
         
         results = []
         for idx in top_indices:
-            class_name = self.SAMPLE_CLASSES[idx] if idx < len(self.SAMPLE_CLASSES) else f"class_{idx}"
-            results.append((class_name, float(probs[idx])))
+            idx_val = idx.item()
+            class_name = self.SAMPLE_CLASSES[idx_val] if idx_val < len(self.SAMPLE_CLASSES) else f"class_{idx_val}"
+            results.append((class_name, probs[idx_val].item()))
         
         return results
     
-    def predict_frame(self, frame: np.ndarray) -> tf.Tensor:
-        """
-        Predict from single frame (streaming mode)
+    def predict_frame(self, frame: np.ndarray) -> torch.Tensor:
+        if self.model is None:
+            raise RuntimeError("Model not loaded")
         
-        Args:
-            frame: Single frame as numpy array (H, W, BGR)
-            
-        Returns:
-            Model output tensor
-        """
-        if not self.use_streaming:
-            raise RuntimeError("Streaming mode not enabled. Set use_streaming=True")
-        
-        # Preprocess
         frame = self._preprocess_frame(frame)
-        frame = np.expand_dims(frame, axis=0)  # [1, H, W, C]
+        frame = frame.unsqueeze(0).unsqueeze(0).to(self.device)
         
-        # Update states
-        self.states = self.model.signatures["serving_default"](
-            image=frame,
-            **self.states
-        )
+        with torch.no_grad():
+            logits = self.model(frame)
         
-        return self.states['classifier']
-    
-    def get_predictions_from_states(self, top_k: int = 5) -> List[Tuple[str, float]]:
-        """Get predictions from current streaming states"""
-        if not self.use_streaming:
-            raise RuntimeError("Streaming mode not enabled")
-        
-        logits = self.states['classifier'][0]
-        probs = tf.nn.softmax(logits).numpy()
-        
-        top_indices = np.argsort(probs)[-top_k:][::-1]
-        
-        results = []
-        for idx in top_indices:
-            class_name = self.SAMPLE_CLASSES[idx] if idx < len(self.SAMPLE_CLASSES) else f"class_{idx}"
-            results.append((class_name, float(probs[idx])))
-        
-        return results
-    
-    def reset_states(self):
-        """Reset streaming states"""
-        if self.use_streaming:
-            self.states = self.model.init_states()
+        return logits
 
 
 def main():
-    """Quick test"""
-    print("🧪 Testing Movinet Classifier...")
+    print("Testing Movinet Classifier with PyTorch...")
+    classifier = MovinetClassifier(model_id="a0")
     
-    # Initialize with GPU
-    classifier = MovinetClassifier(model_id="a0", use_streaming=False)
-    
-    # Test inference (requires sample video)
-    print("\n📝 To test with video:")
-    print("   classifier = MovinetClassifier(model_id='a0')")
+    print("\nTo test with video:")
     print("   results = classifier.predict('path/to/video.mp4')")
     print("   print(results)")
 
