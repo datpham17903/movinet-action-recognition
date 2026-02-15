@@ -91,6 +91,43 @@ movinet_action_recognition/
 python test_movinet.py
 ```
 
+## Fine-tuning
+
+### 1. Prepare your dataset
+
+Organize videos in folders by class:
+```
+dataset/train/
+├── walking/
+│   ├── video1.mp4
+│   ├── video2.mp4
+│   └── ...
+├── running/
+│   └── ...
+└── dancing/
+    └── ...
+```
+
+### 2. Train the model
+
+```bash
+python train.py --data_dir dataset/train --epochs 10 --batch_size 4
+```
+
+### 3. Use fine-tuned model
+
+```python
+from movinet_classifier import MovinetClassifier
+
+classifier = MovinetClassifier(pretrained_path='models/fine_tuned.pth')
+results = classifier.predict('test_video.mp4', top_k=5)
+print(results)
+# [('walking', 0.85), ('running', 0.10), ...]
+```
+
+Training creates:
+- `models/fine_tuned.pth` - Fine-tuned model weights
+
 ## GPU Compatibility Note
 
 **RTX 5060 Ti (Ada Lovelace / sm_120)**: Current PyTorch versions (including nightly builds as of Feb 2026) do not fully support the sm_120 compute capability. The classifier automatically falls back to CPU mode when GPU inference fails.

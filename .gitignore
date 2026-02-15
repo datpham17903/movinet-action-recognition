@@ -30,3 +30,10 @@ logs/
 
 # Model cache
 model_cache/
+
+# Training data
+dataset/
+models/*.pth
+*.avi
+*.mp4
+!sample_video.mp4

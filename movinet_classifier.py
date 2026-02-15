@@ -323,15 +323,21 @@ class MovinetClassifier:
     ]
     
     def __init__(self, model_id: str = "a0", use_streaming: bool = False,
-                 num_frames: int = 16, image_size: int = 224):
+                 num_frames: int = 16, image_size: int = 224,
+                 pretrained_path: str = None):
         self.num_frames = num_frames
         self.image_size = image_size
         self.use_streaming = use_streaming
         self.device = None
         self.model = None
+        self.custom_classes = None
         
         self._setup_gpu()
-        self._load_model(model_id, use_streaming)
+        
+        if pretrained_path:
+            self._load_pretrained(pretrained_path)
+        else:
+            self._load_model(model_id, use_streaming)
     
     def _setup_gpu(self):
         """Setup device - try GPU first, fall back to CPU if not compatible"""
@@ -369,6 +375,36 @@ class MovinetClassifier:
             print(f"Model loaded successfully on {self.device}!")
         except Exception as e:
             print(f"Error loading model: {e}")
+            self.model = None
+    
+    def _load_pretrained(self, pretrained_path: str):
+        print(f"Loading fine-tuned model from {pretrained_path}...")
+        
+        try:
+            checkpoint = torch.load(pretrained_path, map_location=self.device)
+            
+            from torchvision.models.video import r3d_18
+            
+            if 'classes' in checkpoint:
+                self.custom_classes = checkpoint['classes']
+                num_classes = len(self.custom_classes)
+                print(f"Custom classes: {self.custom_classes}")
+            else:
+                num_classes = 3
+            
+            self.model = r3d_18(weights=None)
+            self.model.fc = torch.nn.Linear(self.model.fc.in_features, num_classes)
+            
+            if 'model_state_dict' in checkpoint:
+                self.model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+            else:
+                self.model.load_state_dict(checkpoint, strict=False)
+            
+            self.model = self.model.to(self.device)
+            self.model.eval()
+            print(f"Fine-tuned model loaded on {self.device}!")
+        except Exception as e:
+            print(f"Error loading pretrained model: {e}")
             self.model = None
     
     def _preprocess_frame(self, frame: np.ndarray) -> torch.Tensor:
@@ -420,9 +456,11 @@ class MovinetClassifier:
         top_indices = torch.argsort(probs, descending=True)[:top_k]
         
         results = []
+        classes = self.custom_classes if self.custom_classes else self.SAMPLE_CLASSES
+        
         for idx in top_indices:
             idx_val = idx.item()
-            class_name = self.SAMPLE_CLASSES[idx_val] if idx_val < len(self.SAMPLE_CLASSES) else f"class_{idx_val}"
+            class_name = classes[idx_val] if idx_val < len(classes) else f"class_{idx_val}"
             results.append((class_name, probs[idx_val].item()))
         
         return results
@@ -467,9 +505,11 @@ class MovinetClassifier:
         top_indices = torch.argsort(probs, descending=True)[:top_k]
         
         results = []
+        classes = self.custom_classes if self.custom_classes else self.SAMPLE_CLASSES
+        
         for idx in top_indices:
             idx_val = idx.item()
-            class_name = self.SAMPLE_CLASSES[idx_val] if idx_val < len(self.SAMPLE_CLASSES) else f"class_{idx_val}"
+            class_name = classes[idx_val] if idx_val < len(classes) else f"class_{idx_val}"
             results.append((class_name, probs[idx_val].item()))
         
         return results
