@@ -102,6 +102,16 @@ class MovinetGUI:
             pady=3
         ).pack(side=tk.LEFT, padx=5)
         
+        self.use_pretrained_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            control_frame,
+            text="Use Fine-tuned",
+            variable=self.use_pretrained_var,
+            bg="#1a1a2e",
+            fg="white",
+            selectcolor="#0f3460"
+        ).pack(side=tk.LEFT, padx=5)
+        
         # Streaming toggle
         self.streaming_var = tk.BooleanVar(value=False)
         streaming_check = tk.Checkbutton(
@@ -209,21 +219,25 @@ class MovinetGUI:
             try:
                 model_id = self.model_var.get()
                 use_streaming = self.streaming_var.get()
-                pretrained_path = self.pretrained_var.get() if self.pretrained_var.get() else ""
+                
+                pretrained_path = None
+                if self.use_pretrained_var.get():
+                    path = self.pretrained_var.get()
+                    if path:
+                        pretrained_path = path
                 
                 self.classifier = MovinetClassifier(
                     model_id=model_id,
                     use_streaming=use_streaming,
-                    pretrained_path=pretrained_path if pretrained_path else None
+                    pretrained_path=pretrained_path
                 )
                 self.model_loaded = True
                 
                 device_name = str(self.classifier.device)
                 gpu_text = f"Device: {device_name}"
                 
-                if pretrained_path:
-                    if self.classifier.custom_classes:
-                        gpu_text += f" | Classes: {', '.join(self.classifier.custom_classes)}"
+                if pretrained_path and self.classifier.custom_classes:
+                    gpu_text += f" | Classes: {', '.join(self.classifier.custom_classes)}"
                 
                 self.root.after(0, self.update_status, "✅ Model loaded!", gpu_text)
                 
