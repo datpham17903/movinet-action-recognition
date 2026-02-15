@@ -269,7 +269,6 @@ class MovinetGUI:
             self.start_webcam()
     
     def start_webcam(self):
-        """Start webcam stream"""
         self.video_capture = cv2.VideoCapture(0)
         
         if not self.video_capture.isOpened():
@@ -277,13 +276,16 @@ class MovinetGUI:
             return
         
         self.is_streaming = True
-        self.frame_count = 0
         
         if self.classifier:
-            self.classifier.init_streaming(buffer_size=8)
+            try:
+                self.classifier.init_streaming(buffer_size=8)
+                print(f"Streaming initialized, use_streaming={self.classifier.use_streaming}")
+            except Exception as e:
+                print(f"Init streaming error: {e}")
         
         self.webcam_btn.config(text="⏹ Stop", bg="#e94560")
-        self.info_label.config(text="Webcam active - Press 'q' to stop")
+        self.info_label.config(text="Webcam active")
         
         self.process_webcam()
     
@@ -320,7 +322,9 @@ class MovinetGUI:
             
             if self.classifier and hasattr(self.classifier, 'use_streaming') and self.classifier.use_streaming:
                 try:
+                    print("Calling process_stream_frame...")
                     results = self.classifier.process_stream_frame(frame, top_k=3)
+                    print(f"Results: {results}")
                     self.update_results(results)
                 except Exception as e:
                     print(f"Prediction error: {e}")

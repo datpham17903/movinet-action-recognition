@@ -478,13 +478,17 @@ class MovinetClassifier:
         return logits
 
     def init_streaming(self, buffer_size: int = 8):
+        print(f"init_streaming called: buffer_size={buffer_size}")
         self.stream_buffer = []
         self.stream_buffer_size = buffer_size
         self.use_streaming = True
+        print(f"  -> use_streaming = {self.use_streaming}")
 
     def process_stream_frame(self, frame: np.ndarray, top_k: int = 5) -> List[Tuple[str, float]]:
         if self.model is None:
             return [("Model not loaded", 0.0)]
+        
+        print(f"process_stream_frame: buffer len = {len(self.stream_buffer)}")
         
         processed = self._preprocess_frame(frame)
         self.stream_buffer.append(processed)
