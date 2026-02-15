@@ -13,7 +13,7 @@ def create_synthetic_training_data():
     """Create synthetic training data from sample video"""
     
     dataset_dir = Path('dataset/train')
-    classes = ['walking', 'running', 'dancing']
+    classes = ['walking', 'running', 'dancing', 'standing']
     
     for cls in classes:
         (dataset_dir / cls).mkdir(parents=True, exist_ok=True)
@@ -64,6 +64,8 @@ def create_synthetic_training_data():
                     frame_resized = cv2.GaussianBlur(frame_resized, (5, 5), 0)
                 elif cls_name == 'walking':
                     frame_resized = cv2.convertScaleAbs(frame_resized, alpha=0.9, beta=0)
+                elif cls_name == 'standing':
+                    frame_resized = cv2.convertScaleAbs(frame_resized, alpha=0.8, beta=-5)
                 
                 out.write(frame_resized)
             
@@ -80,7 +82,7 @@ def create_synthetic_training_data():
 def count_samples():
     """Count available training samples"""
     dataset_dir = Path('dataset/train')
-    classes = ['walking', 'running', 'dancing']
+    classes = ['walking', 'running', 'dancing', 'standing']
     
     total = 0
     for cls in classes:
