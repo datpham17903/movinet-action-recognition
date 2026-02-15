@@ -280,7 +280,9 @@ class MovinetGUI:
         self.frame_count = 0
         
         if self.classifier:
+            print("Initializing streaming mode...")
             self.classifier.init_streaming(buffer_size=16)
+            print(f"After init, use_streaming = {self.classifier.use_streaming}")
         
         self.webcam_btn.config(text="⏹ Stop", bg="#e94560")
         self.info_label.config(text="Webcam active - Press 'q' to stop")
@@ -303,7 +305,6 @@ class MovinetGUI:
         self.info_label.config(text="Ready")
     
     def process_webcam(self):
-        """Process webcam frames"""
         if not self.is_streaming:
             return
         
@@ -321,10 +322,15 @@ class MovinetGUI:
             
             if self.classifier and hasattr(self.classifier, 'use_streaming') and self.classifier.use_streaming:
                 self.frame_count = getattr(self, 'frame_count', 0) + 1
+                print(f"Frame {self.frame_count}, use_streaming={self.classifier.use_streaming}")
                 
                 if self.frame_count % 5 == 0:
-                    results = self.classifier.process_stream_frame(frame, top_k=3)
-                    self.update_results(results)
+                    try:
+                        results = self.classifier.process_stream_frame(frame, top_k=3)
+                        print(f"Results: {results}")
+                        self.update_results(results)
+                    except Exception as e:
+                        print(f"Prediction error: {e}")
         
         if self.is_streaming:
             self.root.after(30, self.process_webcam)
