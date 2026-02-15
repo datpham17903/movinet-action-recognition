@@ -308,21 +308,33 @@ class MovinetGUI:
         ret, frame = self.video_capture.read()
         
         if ret:
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame_small = cv2.resize(frame_rgb, (640, 480))
-            from PIL import Image, ImageTk
-            img = Image.fromarray(frame_small)
-            photo = ImageTk.PhotoImage(img)
-            self.video_label.config(image="", text="")
-            self.video_label.imgtk = photo
-            self.video_label.configure(image=photo)
+            display_frame = frame.copy()
             
             if self.classifier and hasattr(self.classifier, 'use_streaming') and self.classifier.use_streaming:
                 try:
                     results = self.classifier.process_stream_frame(frame, top_k=3)
                     self.update_results(results)
+                    
+                    if results and results[0][0] != "Buffering...":
+                        label = f"{results[0][0]}: {results[0][1]:.1%}"
+                        cv2.putText(display_frame, label, (20, 40), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
+                        
+                        for i, (action, prob) in enumerate(results[1:3], 2):
+                            cv2.putText(display_frame, f"{action}: {prob:.1%}", 
+                                       (20, 40 + i * 30), 
+                                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 except Exception as e:
                     print(f"Prediction error: {e}")
+            
+            display_frame = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
+            display_frame = cv2.resize(display_frame, (640, 480))
+            from PIL import Image, ImageTk
+            img = Image.fromarray(display_frame)
+            photo = ImageTk.PhotoImage(img)
+            self.video_label.config(image="", text="")
+            self.video_label.imgtk = photo
+            self.video_label.configure(image=photo)
         
         if self.is_streaming:
             self.root.after(33, self.process_webcam)
