@@ -331,6 +331,8 @@ class MovinetClassifier:
         self.device = None
         self.model = None
         self.custom_classes = None
+        self.stream_buffer = []
+        self.stream_buffer_size = 8
         
         self._setup_gpu()
         

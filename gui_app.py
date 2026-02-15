@@ -278,6 +278,7 @@ class MovinetGUI:
         self.is_streaming = True
         
         if self.classifier:
+            self.classifier.use_streaming = True
             self.classifier.init_streaming(buffer_size=8)
         
         self.webcam_btn.config(text="⏹ Stop", bg="#e94560")
