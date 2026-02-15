@@ -1,0 +1,18 @@
+# Movinet Action Recognition with GPU Support
+
+## Requirements (GPU Optimized for RTX 5060 Ti 16GB)
+tensorflow[and-cuda]>=2.15.0
+tensorflow-hub>=0.14.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+Pillow>=10.0.0
+
+## GPU Setup for RTX 5060 Ti
+# TensorFlow sẽ tự động detect CUDA nếu cài đặt đúng
+# Đảm bảo CUDA Toolkit và cuDNN đã được cài đặt
+
+## Installation
+pip install -r requirements.txt
+
+## Verify GPU
+python -c "import tensorflow as tf; print('GPU Available:', tf.config.list_physical_devices('GPU'))"
