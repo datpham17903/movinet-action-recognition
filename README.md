@@ -34,17 +34,23 @@ pip install -r requirements.txt
 
 ```python
 from movinet_classifier import MovinetClassifier
+import numpy as np
 
-# Initialize classifier (with GPU)
-classifier = MovinetClassifier(model_id="a0", use_streaming=False)
-
-# Predict from video file
+# Batch mode - predict from video file
+classifier = MovinetClassifier(model_id="a0")
 results = classifier.predict("path/to/video.mp4", top_k=5)
 print(results)
 # [('dancing', 0.85), ('running', 0.10), ...]
 
-# Or use streaming mode for webcam
-classifier_stream = MovinetClassifier(model_id="a0", use_streaming=True)
+# Streaming mode - real-time webcam
+classifier.init_streaming(buffer_size=16)
+cap = cv2.VideoCapture(0)
+
+while True:
+    ret, frame = cap.read()
+    if ret:
+        results = classifier.process_stream_frame(frame, top_k=3)
+        print(results)  # Real-time predictions
 ```
 
 ### GUI Application

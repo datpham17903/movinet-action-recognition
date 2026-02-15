@@ -248,6 +248,11 @@ class MovinetGUI:
             return
         
         self.is_streaming = True
+        self.frame_count = 0
+        
+        if self.classifier:
+            self.classifier.init_streaming(buffer_size=16)
+        
         self.webcam_btn.config(text="⏹ Stop", bg="#e94560")
         self.info_label.config(text="Webcam active - Press 'q' to stop")
         
@@ -261,6 +266,9 @@ class MovinetGUI:
             self.video_capture.release()
             self.video_capture = None
         
+        if self.classifier and hasattr(self.classifier, 'reset_stream'):
+            self.classifier.reset_stream()
+        
         self.webcam_btn.config(text="📷 Webcam", bg="#0f3460")
         self.video_label.config(text="Streaming stopped")
         self.info_label.config(text="Ready")
@@ -273,7 +281,6 @@ class MovinetGUI:
         ret, frame = self.video_capture.read()
         
         if ret:
-            # Display frame
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame_small = cv2.resize(frame_rgb, (640, 480))
             from PIL import Image, ImageTk
@@ -283,24 +290,15 @@ class MovinetGUI:
             self.video_label.imgtk = photo
             self.video_label.configure(image=photo)
             
-            # Predict every 10 frames
-            if self.classifier and hasattr(self, 'frame_count'):
-                self.frame_count += 1
-                if self.frame_count % 10 == 0:
-                    # Get prediction
-                    if self.classifier.use_streaming:
-                        results = self.classifier.get_predictions_from_states(top_k=3)
-                        self.update_results(results)
-                    else:
-                        # For non-streaming, use last processed frame
-                        pass
-            
-            if not hasattr(self, 'frame_count'):
-                self.frame_count = 0
+            if self.classifier and hasattr(self.classifier, 'use_streaming') and self.classifier.use_streaming:
+                self.frame_count = getattr(self, 'frame_count', 0) + 1
+                
+                if self.frame_count % 5 == 0:
+                    results = self.classifier.process_stream_frame(frame, top_k=3)
+                    self.update_results(results)
         
-        # Continue loop
         if self.is_streaming:
-            self.root.after(10, self.process_webcam)
+            self.root.after(30, self.process_webcam)
     
     def process_video(self, video_path: str):
         """Process video file"""
