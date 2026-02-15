@@ -90,6 +90,18 @@ class MovinetGUI:
         )
         model_combo.pack(side=tk.LEFT, padx=5)
         
+        # Fine-tuned model path
+        self.pretrained_var = tk.StringVar(value="")
+        tk.Button(
+            control_frame,
+            text="📂 Fine-tuned Model",
+            command=self.select_pretrained,
+            bg="#16213e",
+            fg="white",
+            padx=10,
+            pady=3
+        ).pack(side=tk.LEFT, padx=5)
+        
         # Streaming toggle
         self.streaming_var = tk.BooleanVar(value=False)
         streaming_check = tk.Checkbutton(
@@ -179,22 +191,39 @@ class MovinetGUI:
         )
         self.info_label.pack()
     
+    def select_pretrained(self):
+        file_path = filedialog.askopenfilename(
+            title="Select Fine-tuned Model",
+            filetypes=[
+                ("PyTorch models", "*.pth *.pt"),
+                ("All files", "*.*")
+            ]
+        )
+        if file_path:
+            self.pretrained_var.set(file_path)
+            self.info_label.config(text=f"Selected: {file_path}")
+            self.load_model_thread()
+    
     def load_model_thread(self):
-        """Load model in background thread"""
         def load():
             try:
                 model_id = self.model_var.get()
                 use_streaming = self.streaming_var.get()
+                pretrained_path = self.pretrained_var.get() if self.pretrained_var.get() else ""
                 
                 self.classifier = MovinetClassifier(
                     model_id=model_id,
-                    use_streaming=use_streaming
+                    use_streaming=use_streaming,
+                    pretrained_path=pretrained_path if pretrained_path else None
                 )
                 self.model_loaded = True
                 
-                # Check device
                 device_name = str(self.classifier.device)
                 gpu_text = f"Device: {device_name}"
+                
+                if pretrained_path:
+                    if self.classifier.custom_classes:
+                        gpu_text += f" | Classes: {', '.join(self.classifier.custom_classes)}"
                 
                 self.root.after(0, self.update_status, "✅ Model loaded!", gpu_text)
                 

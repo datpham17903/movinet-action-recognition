@@ -324,7 +324,7 @@ class MovinetClassifier:
     
     def __init__(self, model_id: str = "a0", use_streaming: bool = False,
                  num_frames: int = 16, image_size: int = 224,
-                 pretrained_path: str = None):
+                 pretrained_path: Optional[str] = None):
         self.num_frames = num_frames
         self.image_size = image_size
         self.use_streaming = use_streaming
