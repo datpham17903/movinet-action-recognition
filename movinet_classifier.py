@@ -334,10 +334,25 @@ class MovinetClassifier:
         self._load_model(model_id, use_streaming)
     
     def _setup_gpu(self):
+        """Setup device - try GPU first, fall back to CPU if not compatible"""
         if torch.cuda.is_available():
-            self.device = torch.device('cuda')
-            print(f"GPU detected: {torch.cuda.get_device_name(0)}")
-            print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+            try:
+                # First test basic CUDA
+                test_tensor = torch.zeros(1).cuda()
+                test_result = test_tensor + 1
+                del test_tensor, test_result
+                torch.cuda.synchronize()
+                
+                self.device = torch.device('cuda')
+                print(f"GPU detected: {torch.cuda.get_device_name(0)}")
+                print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+            except RuntimeError as e:
+                if "no kernel image is available" in str(e) or "CUDA error" in str(e):
+                    print(f"GPU not compatible with current PyTorch: {e}")
+                    print("Falling back to CPU mode...")
+                    self.device = torch.device('cpu')
+                else:
+                    raise
         else:
             self.device = torch.device('cpu')
             print("No GPU detected, using CPU")
@@ -395,7 +410,8 @@ class MovinetClassifier:
             return [("Model not loaded", 0.0)]
         
         video = self._load_video_frames(video_path)
-        video = video.unsqueeze(0).to(self.device)
+        # Reshape from [T, C, H, W] to [B, C, T, H, W]
+        video = video.permute(1, 0, 2, 3).unsqueeze(0).to(self.device)
         
         with torch.no_grad():
             logits = self.model(video)

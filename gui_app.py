@@ -192,10 +192,9 @@ class MovinetGUI:
                 )
                 self.model_loaded = True
                 
-                # Check GPU
-                import tensorflow as tf
-                gpus = tf.config.list_physical_devices('GPU')
-                gpu_text = f"GPU: {'✅ Active' if gpus else '❌ CPU'}"
+                # Check device
+                device_name = str(self.classifier.device)
+                gpu_text = f"Device: {device_name}"
                 
                 self.root.after(0, self.update_status, "✅ Model loaded!", gpu_text)
                 

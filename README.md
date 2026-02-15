@@ -1,15 +1,15 @@
 # Movinet Action Recognition
 
-GPU-accelerated human action recognition using MoViNet (Mobile Video Networks) with TensorFlow.
+Human action recognition using MoViNet-style 3D CNN (R3D) with PyTorch.
 
 ## Features
 
-- **GPU Acceleration**: Optimized for NVIDIA GPUs (RTX series support)
+- **GPU/CPU Support**: Automatic fallback to CPU when GPU is not compatible
 - **Streaming Mode**: Real-time frame-by-frame inference
 - **Batch Mode**: Video file classification
 - **GUI Application**: Easy-to-use Tkinter interface
 - **Multiple Models**: Support for A0, A1, A2, A3 variants
-- **1991 Action Classes**: Based on Kinetics dataset
+- **600 Action Classes**: Based on Kinetics-400 dataset
 
 ## Requirements
 
@@ -21,8 +21,8 @@ GPU-accelerated human action recognition using MoViNet (Mobile Video Networks) w
 
 ```bash
 # Clone repository
-git clone <repo-url>
-cd movinet_action_recognition
+git clone https://github.com/datpham17903/movinet-action-recognition.git
+cd movinet-action-recognition
 
 # Install dependencies
 pip install -r requirements.txt
@@ -85,16 +85,15 @@ movinet_action_recognition/
 python test_movinet.py
 ```
 
-## GPU Setup
+## GPU Compatibility Note
 
-For optimal performance with NVIDIA GPUs:
+**RTX 5060 Ti (Ada Lovelace / sm_120)**: Current PyTorch versions (including nightly builds as of Feb 2026) do not fully support the sm_120 compute capability. The classifier automatically falls back to CPU mode when GPU inference fails.
 
-1. Install CUDA Toolkit
-2. Install cuDNN
-3. Verify with:
+To check your PyTorch CUDA support:
 ```python
-import tensorflow as tf
-print(tf.config.list_physical_devices('GPU'))
+import torch
+print(torch.cuda.is_available())
+print(torch.version.cuda)
 ```
 
 ## License
