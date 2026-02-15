@@ -477,12 +477,10 @@ class MovinetClassifier:
         
         return logits
 
-    def init_streaming(self, buffer_size: int = 16):
-        print(f"init_streaming called with buffer_size={buffer_size}")
+    def init_streaming(self, buffer_size: int = 8):
         self.stream_buffer = []
         self.stream_buffer_size = buffer_size
         self.use_streaming = True
-        print(f"  -> use_streaming set to True")
 
     def process_stream_frame(self, frame: np.ndarray, top_k: int = 5) -> List[Tuple[str, float]]:
         if self.model is None:
@@ -491,11 +489,11 @@ class MovinetClassifier:
         processed = self._preprocess_frame(frame)
         self.stream_buffer.append(processed)
         
-        if len(self.stream_buffer) < self.stream_buffer_size:
-            return [("Buffering...", 0.0)]
-        
         if len(self.stream_buffer) > self.stream_buffer_size:
             self.stream_buffer.pop(0)
+        
+        if len(self.stream_buffer) < 4:
+            return [(f"Buffering ({len(self.stream_buffer)}/{self.stream_buffer_size})...", 0.0)]
         
         frames = torch.stack(self.stream_buffer[-self.stream_buffer_size:])
         frames = frames.permute(1, 0, 2, 3).unsqueeze(0).to(self.device)
